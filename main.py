@@ -1,19 +1,18 @@
-<<<<<<< HEAD
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import replicate
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load .env
 load_dotenv()
 
 app = FastAPI()
 
-# Allow CORS (for frontend integration)
+# Allow frontend CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to your frontend URL in production
+    allow_origins=["*"],  # In production, specify frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,25 +23,21 @@ app.add_middleware(
 def read_root():
     return {"message": "AI Backend is running!"}
 
-# Article generation route
+# 1️⃣ Article Generator
 @app.post("/generate")
 async def generate_article(request: Request):
     body = await request.json()
     prompt = body.get("prompt", "")
-
-    # Check for empty prompt
     if not prompt:
         return {"error": "Prompt is required."}
 
-    # Use your Replicate API token
     replicate_token = os.getenv("REPLICATE_API_TOKEN")
     if not replicate_token:
         return {"error": "Missing Replicate API token."}
 
-    replicate_client = replicate.Client(api_token=replicate_token)
-
     try:
-        output = replicate_client.run(
+        client = replicate.Client(api_token=replicate_token)
+        output = client.run(
             "meta/llama-2-7b-chat",
             input={
                 "prompt": prompt,
@@ -54,66 +49,56 @@ async def generate_article(request: Request):
         )
         article = "".join(output)
         return {"article": article}
-
     except Exception as e:
         return {"error": str(e)}
-=======
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-import replicate
-import os
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
-
-app = FastAPI()
-
-# Allow CORS (for frontend integration)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Change to your frontend URL in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Home route
-@app.get("/")
-def read_root():
-    return {"message": "AI Backend is running!"}
-
-# Article generation route
-@app.post("/generate")
-async def generate_article(request: Request):
+# 2️⃣ Text Humanizer
+@app.post("/humanize")
+async def humanize_text(request: Request):
     body = await request.json()
-    prompt = body.get("prompt", "")
+    raw_text = body.get("text", "")
+    if not raw_text:
+        return {"error": "Text is required."}
 
-    # Check for empty prompt
-    if not prompt:
-        return {"error": "Prompt is required."}
-
-    # Use your Replicate API token
     replicate_token = os.getenv("REPLICATE_API_TOKEN")
     if not replicate_token:
         return {"error": "Missing Replicate API token."}
 
-    replicate_client = replicate.Client(api_token=replicate_token)
-
     try:
-        output = replicate_client.run(
+        client = replicate.Client(api_token=replicate_token)
+        output = client.run(
             "meta/llama-2-7b-chat",
             input={
-                "prompt": prompt,
-                "temperature": 0.7,
+                "prompt": f"Rewrite the following in a more human-like, natural tone:\n\n{raw_text}",
+                "temperature": 0.75,
                 "top_p": 1,
                 "max_length": 1000,
                 "repetition_penalty": 1.1
             }
         )
-        article = "".join(output)
-        return {"article": article}
-
+        humanized = "".join(output)
+        return {"humanized": humanized}
     except Exception as e:
         return {"error": str(e)}
->>>>>>> 6d0b8ab (Added root route)
+
+# 3️⃣ Text-to-Image Generator
+@app.post("/generate-image")
+async def generate_image(request: Request):
+    body = await request.json()
+    prompt = body.get("prompt", "")
+    if not prompt:
+        return {"error": "Prompt is required."}
+
+    replicate_token = os.getenv("REPLICATE_API_TOKEN")
+    if not replicate_token:
+        return {"error": "Missing Replicate API token."}
+
+    try:
+        client = replicate.Client(api_token=replicate_token)
+        output = client.run(
+            "stability-ai/sdxl",  # Or any other model you prefer
+            input={"prompt": prompt}
+        )
+        return {"image_url": output[0]}  # Most models return image URL(s) in a list
+    except Exception as e:
+        return {"error": str(e)}
